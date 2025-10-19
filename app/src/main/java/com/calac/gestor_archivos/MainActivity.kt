@@ -14,6 +14,7 @@ import android.widget.Toast
 import android.widget.EditText
 import android.view.Menu // <-- AÑADE ESTA
 import android.view.MenuItem // <-- AÑADE ESTA
+import androidx.appcompat.app.AppCompatDelegate // <-- AÑADE ESTA
 import android.content.Context // <-- AÑADE ESTA
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
@@ -56,14 +57,25 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pasteTextView: TextView
     private lateinit var pasteButton: Button
     private lateinit var cancelPasteButton: Button
+    private lateinit var breadcrumbRecyclerView: RecyclerView
+    private lateinit var breadcrumbAdapter: BreadcrumbAdapter
+    private val rootPath = Environment.getExternalStorageDirectory().absolutePath
 
     enum class OperationType {
         COPY, MOVE
     }
 
+    companion object {
+        const val PREFS_NAME = "AppPreferences"
+        const val PREF_KEY_THEME = "SelectedTheme"
+        const val PREF_KEY_MODE = "SelectedMode"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applySavedNightMode()
         applySavedTheme()
+
         setContentView(R.layout.activity_main)
 
         val toolbar: Toolbar = findViewById(R.id.toolbar)
@@ -88,10 +100,40 @@ class MainActivity : AppCompatActivity() {
         }
 
         setupRecyclerView()
+        setupBreadcrumbView()
         setupBackButtonHandler() // Configurar el manejo del botón de "atrás"
         checkAndRequestPermissions()
 
         updatePasteBarUI()
+    }
+
+    private fun setupBreadcrumbView() {
+        breadcrumbRecyclerView = findViewById(R.id.breadcrumbRecyclerView)
+        // El layout manager ya está en el XML, pero podemos configurarlo aquí si queremos
+        // breadcrumbRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+
+        breadcrumbAdapter = BreadcrumbAdapter(emptyList()) { pathSegment ->
+            // Lógica de clic en un breadcrumb
+
+            // 1. No hacer nada si se pulsa la carpeta en la que ya estamos
+            if (pathSegment.path == currentPath) return@BreadcrumbAdapter
+
+            // 2. Limpiar el historial de "vuelta atrás" hasta ese punto
+            // Ej: Si estamos en A > B > C > D y pulsamos "B"
+            // El historial (A, B, C) debe limpiarse hasta "A"
+            while (pathHistory.isNotEmpty() && pathHistory.peek() != pathSegment.path) {
+                if (pathHistory.peek() == rootPath && pathSegment.path != rootPath) {
+                    // Caso especial: no quitar la raíz si no vamos a ella
+                    break
+                }
+                pathHistory.pop()
+                if (pathHistory.isEmpty()) break
+            }
+
+            // 3. Navegar
+            navigateToDirectory(pathSegment.path)
+        }
+        breadcrumbRecyclerView.adapter = breadcrumbAdapter
     }
 
     // Este método infla (crea) el menú en la Toolbar
@@ -107,8 +149,27 @@ class MainActivity : AppCompatActivity() {
                 showThemeSelectionDialog()
                 true // Indica que hemos manejado el clic
             }
+            R.id.action_change_mode -> {
+                showModeSelectionDialog()
+                true
+            }
             else -> super.onOptionsItemSelected(item)
         }
+    }
+
+    private fun showModeSelectionDialog() {
+        val modes = arrayOf("Automático (Sistema)", "Claro", "Oscuro")
+        val currentModeIndex = getCurrentModeIndex() // 0=Auto, 1=Claro, 2=Oscuro
+
+        AlertDialog.Builder(this)
+            .setTitle("Seleccionar Modo")
+            .setSingleChoiceItems(modes, currentModeIndex) { dialog, which ->
+                saveModePreference(which)
+                dialog.dismiss()
+                recreate() // Reinicia la app para aplicar el modo
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     // --- FUNCIÓN PARA EL DIÁLOGO DE SELECCIÓN DE TEMA ---
@@ -132,17 +193,39 @@ class MainActivity : AppCompatActivity() {
     // --- FUNCIONES PARA GUARDAR/LEER PREFERENCIAS (USANDO SharedPreferences) ---
 
     private fun saveThemePreference(themeIndex: Int) {
-        val sharedPref = getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
+        val sharedPref = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         with(sharedPref.edit()) {
-            putInt("SelectedTheme", themeIndex)
-            apply() // Guarda asíncronamente
+            putInt(PREF_KEY_THEME, themeIndex)
+            apply()
         }
     }
 
     private fun getCurrentThemeIndex(): Int {
-        val sharedPref = getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
-        // Devuelve 0 (IPN) si no hay nada guardado
-        return sharedPref.getInt("SelectedTheme", 0)
+        val sharedPref = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPref.getInt(PREF_KEY_THEME, 0) // 0 = IPN
+    }
+
+    private fun saveModePreference(modeIndex: Int) {
+        val sharedPref = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        with(sharedPref.edit()) {
+            putInt(PREF_KEY_MODE, modeIndex)
+            apply()
+        }
+    }
+
+    private fun getCurrentModeIndex(): Int {
+        val sharedPref = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPref.getInt(PREF_KEY_MODE, 0) // 0 = Automático
+    }
+
+    private fun applySavedNightMode() {
+        val modeIndex = getCurrentModeIndex()
+        val mode = when (modeIndex) {
+            1 -> AppCompatDelegate.MODE_NIGHT_NO  // 1 = Forzar Claro
+            2 -> AppCompatDelegate.MODE_NIGHT_YES // 2 = Forzar Oscuro
+            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM // 0 = Automático
+        }
+        AppCompatDelegate.setDefaultNightMode(mode)
     }
 
     // --- ACTUALIZA applySavedTheme() PARA USAR LA PREFERENCIA ---
@@ -542,8 +625,38 @@ class MainActivity : AppCompatActivity() {
         currentPath = path
         val files = getFilesFromPath(path)
         fileAdapter.updateData(files)
-        // MODIFICADO: Solo se actualiza el estado del callback existente
+        // Actualiza los breadcrumbs
+        val segments = parsePathToSegments(path)
+        breadcrumbAdapter.updateData(segments)
+        // Mueve la barra de breadcrumbs al final para mostrar el último elemento
+        breadcrumbRecyclerView.scrollToPosition(segments.size - 1)
         onBackPressedCallback.isEnabled = pathHistory.isNotEmpty()
+    }
+
+    /**
+     * Convierte una ruta absoluta (ej. /storage/emulated/0/Download/Docs)
+     * en una lista de PathSegment para el adapter.
+     */
+    private fun parsePathToSegments(fullPath: String): List<PathSegment> {
+        val segments = mutableListOf<PathSegment>()
+        // 1. Añadir el segmento Raíz
+        segments.add(PathSegment("Almacenamiento", rootPath))
+
+        // 2. Comprobar si estamos en una subcarpeta
+        if (fullPath.length > rootPath.length) {
+            // Obtener la parte relativa (ej. "/Download/Docs")
+            val relativePath = fullPath.substring(rootPath.length + 1)
+
+            // Dividir la ruta relativa por "/"
+            val folders = relativePath.split('/')
+
+            var currentSegmentPath = rootPath
+            for (folderName in folders) {
+                currentSegmentPath = "$currentSegmentPath/$folderName"
+                segments.add(PathSegment(folderName, currentSegmentPath))
+            }
+        }
+        return segments
     }
 
     override fun onResume() {
