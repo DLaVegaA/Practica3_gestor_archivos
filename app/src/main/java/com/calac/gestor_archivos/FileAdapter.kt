@@ -1,5 +1,6 @@
 package com.calac.gestor_archivos
 
+import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -8,7 +9,8 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
 class FileAdapter(private var files: List<FileItem>,
-                  private val onItemClickListener: (FileItem) -> Unit
+                  private val onItemClickListener: (FileItem, View) -> Unit,
+                  private val onItemLongClickListener: (FileItem) -> Unit
 ) : RecyclerView.Adapter<FileAdapter.ViewHolder>() {
 
     // Esta clase interna representa una vista de fila en el RecyclerView.
@@ -27,6 +29,7 @@ class FileAdapter(private var files: List<FileItem>,
 
     // Se llama para mostrar los datos en una posición específica.
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        //holder.itemView.setBackgroundColor(Color.TRANSPARENT)
         val fileItem = files[position]
 
         // Pone el nombre del archivo en el TextView.
@@ -40,7 +43,12 @@ class FileAdapter(private var files: List<FileItem>,
         }
 
         holder.itemView.setOnClickListener {
-            onItemClickListener(fileItem)
+            onItemClickListener(fileItem, holder.itemView) // <-- MODIFICADO
+        }
+
+        holder.itemView.setOnLongClickListener {
+            onItemLongClickListener(fileItem)
+            true // Devuelve 'true' para indicar que el evento ha sido consumido
         }
     }
 

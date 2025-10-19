@@ -1,9 +1,47 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.Gestor_Archivos" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+
+    <style name="Theme.Gestor_Archivos.IPN" parent="Theme.Material3.DayNight.NoActionBar">
+
+        <item name="colorPrimary">@color/ipn_guinda</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorPrimaryContainer">@color/ipn_guinda</item>
+        <item name="colorOnPrimaryContainer">@color/white</item>
+
+        <item name="colorSecondary">@color/ipn_guinda_claro</item>
+        <item name="colorOnSecondary">@color/black</item>
+        <item name="colorSecondaryContainer">@color/ipn_guinda_claro</item>
+        <item name="colorOnSecondaryContainer">@color/black</item>
+
+        <item name="android:statusBarColor">@color/ipn_guinda_oscuro</item>
+
+        <item name="android:colorBackground">@color/white</item>
+        <item name="colorSurface">#F5F5F5</item>
+        <item name="colorOnBackground">@color/black</item>
+        <item name="colorOnSurface">@color/black</item>
+
+        <item name="android:colorControlHighlight">@color/ipn_guinda_ripple</item>
+
     </style>
 
-    <style name="Theme.Gestor_Archivos" parent="Base.Theme.Gestor_Archivos" />
+    <style name="Theme.Gestor_Archivos.ESCOM" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/escom_azul</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorPrimaryContainer">@color/escom_azul</item>
+        <item name="colorOnPrimaryContainer">@color/white</item>
+
+        <item name="colorSecondary">@color/escom_azul_claro</item>
+        <item name="colorOnSecondary">@color/black</item>
+        <item name="colorSecondaryContainer">@color/escom_azul_claro</item>
+        <item name="colorOnSecondaryContainer">@color/black</item>
+
+        <item name="android:statusBarColor">@color/escom_azul_oscuro</item>
+
+        <item name="android:colorBackground">@color/white</item>
+        <item name="colorSurface">#F5F5F5</item>
+        <item name="colorOnBackground">@color/black</item>
+        <item name="colorOnSurface">@color/black</item>
+
+        <item name="android:colorControlHighlight">@color/escom_azul_ripple</item>
+    </style>
+
 </resources>
