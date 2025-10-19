@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import java.util.Locale
 
 class FileAdapter(private var files: List<FileItem>,
                   private val onItemClickListener: (FileItem, View) -> Unit,
@@ -36,11 +37,10 @@ class FileAdapter(private var files: List<FileItem>,
         holder.nameTextView.text = fileItem.name
 
         // Elige un icono diferente si es una carpeta o un archivo.
-        if (fileItem.isDirectory) {
-            holder.iconImageView.setImageResource(android.R.drawable.ic_menu_manage) // Icono genérico de carpeta
-        } else {
-            holder.iconImageView.setImageResource(android.R.drawable.ic_menu_agenda) // Icono genérico de archivo
-        }
+        // 1. Obtenemos el ID del ícono correcto
+        val iconResId = getFileIconResId(fileItem)
+        // 2. Lo asignamos al ImageView
+        holder.iconImageView.setImageResource(iconResId)
 
         holder.itemView.setOnClickListener {
             onItemClickListener(fileItem, holder.itemView) // <-- MODIFICADO
@@ -61,5 +61,37 @@ class FileAdapter(private var files: List<FileItem>,
     fun updateData(newFiles: List<FileItem>) {
         files = newFiles
         notifyDataSetChanged() // Notifica al RecyclerView que los datos han cambiado y debe redibujarse.
+    }
+
+    /**
+     * Devuelve el ID del recurso (drawable) del ícono apropiado para el archivo.
+     */
+    private fun getFileIconResId(fileItem: FileItem): Int {
+        // 1. Si es una carpeta, devuelve el ícono de carpeta
+        if (fileItem.isDirectory) {
+            return R.drawable.ic_folder
+        }
+
+        // 2. Si es un archivo, obtén la extensión
+        val extension = fileItem.name.substringAfterLast('.', "").lowercase(Locale.getDefault())
+
+        // 3. Devuelve un ícono basado en la extensión
+        return when (extension) {
+            // Imágenes
+            "jpg", "jpeg", "png", "gif", "bmp", "webp" -> R.drawable.ic_file_image
+            // Audio
+            "mp3", "wav", "aac", "ogg", "m4a" -> R.drawable.ic_file_audio
+            // Video
+            "mp4", "mkv", "avi", "webm", "3gp" -> R.drawable.ic_file_video
+            // Documentos
+            "pdf" -> R.drawable.ic_file_pdf
+            "txt", "md", "log" -> R.drawable.ic_file_text
+            // Código
+            "xml", "json", "kt", "java", "html", "css" -> R.drawable.ic_file_code
+            // Comprimidos
+            "zip", "rar", "7z", "tar" -> R.drawable.ic_folder_zip
+            // Si no coincide con nada, usa el ícono genérico
+            else -> R.drawable.ic_file_generic
+        }
     }
 }
