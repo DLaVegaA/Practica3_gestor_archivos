@@ -1,7 +1,46 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.Gestor_Archivos" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+
+    <style name="Theme.Gestor_Archivos.IPN" parent="Theme.Material3.DayNight.NoActionBar">
+
+    <item name="colorPrimary">@color/ipn_guinda_claro</item>
+    <item name="colorOnPrimary">@color/black</item>
+    <item name="colorPrimaryContainer">@color/ipn_guinda_claro</item>
+    <item name="colorOnPrimaryContainer">@color/black</item>
+
+    <item name="colorSecondary">@color/ipn_guinda</item>
+    <item name="colorOnSecondary">@color/white</item>
+    <item name="colorSecondaryContainer">@color/ipn_guinda</item>
+    <item name="colorOnSecondaryContainer">@color/white</item>
+
+    <item name="android:statusBarColor">@color/ipn_guinda_oscuro</item>
+
+    <item name="android:colorBackground">#121212</item>
+    <item name="colorSurface">#1E1E1E</item>
+    <item name="colorOnBackground">@color/white</item>
+    <item name="colorOnSurface">@color/white</item>
+
+    <item name="android:colorControlHighlight">@color/ipn_guinda_claro_ripple</item>
     </style>
+
+    <style name="Theme.Gestor_Archivos.ESCOM" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/escom_azul_claro</item>
+        <item name="colorOnPrimary">@color/black</item>
+        <item name="colorPrimaryContainer">@color/escom_azul_claro</item>
+        <item name="colorOnPrimaryContainer">@color/black</item>
+
+        <item name="colorSecondary">@color/escom_azul</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="colorSecondaryContainer">@color/escom_azul</item>
+        <item name="colorOnSecondaryContainer">@color/white</item>
+
+        <item name="android:statusBarColor">@color/escom_azul_oscuro</item>
+
+        <item name="android:colorBackground">#121212</item>
+        <item name="colorSurface">#1E1E1E</item>
+        <item name="colorOnBackground">@color/white</item>
+        <item name="colorOnSurface">@color/white</item>
+
+        <item name="android:colorControlHighlight">@color/escom_azul_claro_ripple</item>
+    </style>
+
 </resources>

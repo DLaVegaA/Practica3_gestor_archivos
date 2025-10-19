@@ -2,4 +2,17 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <color name="ipn_guinda_ripple">#336B2E5F</color>
+    <color name="ipn_guinda_claro_ripple">#33B589AA</color>
+
+    <color name="escom_azul_ripple">#88003D6D</color>
+    <color name="escom_azul_claro_ripple">#88538EB9</color>
+
+    <color name="ipn_guinda">#6B2E5F</color>
+    <color name="ipn_guinda_oscuro">#4A2040</color>
+    <color name="ipn_guinda_claro">#B589AA</color>
+    <color name="escom_azul">#003D6D</color>
+    <color name="escom_azul_oscuro">#002A4A</color>
+    <color name="escom_azul_claro">#538EB9</color>
 </resources>
