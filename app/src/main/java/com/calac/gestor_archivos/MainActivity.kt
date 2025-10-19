@@ -19,6 +19,7 @@ import android.content.Context // <-- AÑADE ESTA
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
 import androidx.appcompat.widget.Toolbar
 import android.util.TypedValue // <-- AÑADE ESTA
 import androidx.annotation.AttrRes // <-- AÑADE ESTA
@@ -27,6 +28,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.GridLayoutManager
 import android.content.ActivityNotFoundException
 import android.graphics.Color
 import androidx.core.content.FileProvider
@@ -41,6 +43,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import android.text.format.Formatter
+import android.widget.ImageView
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
     private val REQUEST_CODE_READ_STORAGE = 101
@@ -60,6 +65,20 @@ class MainActivity : AppCompatActivity() {
     private lateinit var breadcrumbRecyclerView: RecyclerView
     private lateinit var breadcrumbAdapter: BreadcrumbAdapter
     private val rootPath = Environment.getExternalStorageDirectory().absolutePath
+    private var viewModeMenuItem: MenuItem? = null
+    private var currentViewMode = 0 // 0 = Lista, 1 = Cuadrícula
+    // Inicialización 'lazy' (perezosa) de la base de datos
+    private val database: AppDatabase by lazy { AppDatabase.getInstance(this) }
+    private val favoriteDao: FavoriteDao by lazy { database.favoriteDao() }
+    private val recentFileDao: RecentFileDao by lazy { database.recentFileDao() } // <-- ADD THIS
+
+    // Un set para guardar las rutas de los favoritos cargados
+    private var favoritePaths = setOf<String>()
+    private lateinit var recentFilesRecyclerView: RecyclerView
+    private lateinit var recentFilesAdapter: RecentFilesAdapter
+    private lateinit var recentFilesHeader: View
+    private lateinit var recentFilesToggleIcon: ImageView
+    private var isRecentsExpanded = false // Estado de la sección
 
     enum class OperationType {
         COPY, MOVE
@@ -69,6 +88,9 @@ class MainActivity : AppCompatActivity() {
         const val PREFS_NAME = "AppPreferences"
         const val PREF_KEY_THEME = "SelectedTheme"
         const val PREF_KEY_MODE = "SelectedMode"
+        const val PREF_KEY_VIEW_MODE = "ViewMode" // <-- NUEVA CONSTANTE
+        const val VIEW_MODE_LIST = 0
+        const val VIEW_MODE_GRID = 1
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,6 +99,14 @@ class MainActivity : AppCompatActivity() {
         applySavedTheme()
 
         setContentView(R.layout.activity_main)
+
+        currentViewMode = getCurrentViewMode()
+
+        // Inicialización de Recientes
+        recentFilesRecyclerView = findViewById(R.id.recentFilesRecyclerView)
+        recentFilesHeader = findViewById(R.id.recent_files_header)
+        recentFilesToggleIcon = findViewById(R.id.iv_recent_files_toggle)
+        setupRecentFilesView() // Nueva función de setup
 
         val toolbar: Toolbar = findViewById(R.id.toolbar)
         setSupportActionBar(toolbar)
@@ -105,6 +135,38 @@ class MainActivity : AppCompatActivity() {
         checkAndRequestPermissions()
 
         updatePasteBarUI()
+        loadAndDisplayRecentFiles()
+    }
+
+    private fun setupRecentFilesView() {
+        recentFilesRecyclerView.layoutManager = LinearLayoutManager(this)
+        recentFilesAdapter = RecentFilesAdapter(emptyList()) { recentFile, itemView ->
+            // Lógica al hacer clic en un archivo reciente
+            val file = File(recentFile.path)
+            if (file.exists()) {
+                // Reutilizamos la lógica de FileItem (creando uno temporal)
+                val fileItem = FileItem(
+                    recentFile.name,
+                    recentFile.path,
+                    false, // Sabemos que no es directorio si está en recientes
+                    file.length(),
+                    file.lastModified()
+                )
+                openFile(fileItem) // Llama a tu función openFile existente
+            } else {
+                Toast.makeText(this, "El archivo ya no existe", Toast.LENGTH_SHORT).show()
+                // (Opcional: Borrarlo del historial si ya no existe)
+                // removeRecentFile(recentFile)
+            }
+        }
+        recentFilesRecyclerView.adapter = recentFilesAdapter
+
+        // Lógica para expandir/colapsar
+        recentFilesHeader.setOnClickListener {
+            toggleRecentsSection()
+        }
+        // Inicializa el estado visual
+        updateRecentsToggleIcon()
     }
 
     private fun setupBreadcrumbView() {
@@ -139,6 +201,44 @@ class MainActivity : AppCompatActivity() {
     // Este método infla (crea) el menú en la Toolbar
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
+
+        // Configuración del ícono de Vista (Lista/Cuadrícula)
+        viewModeMenuItem = menu?.findItem(R.id.action_toggle_view)
+        updateViewModeIcon()
+
+        // --- Lógica de Búsqueda ---
+        val searchItem = menu?.findItem(R.id.action_search)
+        val searchView = searchItem?.actionView as? SearchView
+
+        // Configura el listener para el texto de búsqueda
+        searchView?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+
+            // No necesitamos hacer nada cuando el usuario presiona "Enter"
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                return false
+            }
+
+            // Esta función se llama CADA VEZ que el usuario escribe una letra
+            override fun onQueryTextChange(newText: String?): Boolean {
+                // Pasa el texto de búsqueda al adapter para que filtre
+                fileAdapter.filter(newText.orEmpty())
+                return true
+            }
+        })
+
+        // (Opcional pero recomendado) Resetea el filtro cuando se cierra la búsqueda
+        searchItem?.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+            override fun onMenuItemActionExpand(item: MenuItem): Boolean {
+                return true // Permitir que se expanda
+            }
+
+            override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                // Cuando la barra de búsqueda se cierra, limpia el filtro
+                fileAdapter.filter("")
+                return true // Permitir que se cierre
+            }
+        })
+
         return true
     }
 
@@ -151,6 +251,10 @@ class MainActivity : AppCompatActivity() {
             }
             R.id.action_change_mode -> {
                 showModeSelectionDialog()
+                true
+            }
+            R.id.action_toggle_view -> {
+                toggleViewMode()
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -237,7 +341,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupRecyclerView() {
         recyclerView = findViewById(R.id.recyclerView)
-        recyclerView.layoutManager = LinearLayoutManager(this)
+        //recyclerView.layoutManager = LinearLayoutManager(this)
+        applyLayoutManager()
 
         // Ahora, al crear el adapter, le pasamos la función que manejará los clics
         fileAdapter = FileAdapter(
@@ -268,6 +373,65 @@ class MainActivity : AppCompatActivity() {
             }
         )
         recyclerView.adapter = fileAdapter
+    }
+
+    /**
+     * Cambia entre modo Lista y Cuadrícula.
+     */
+    private fun toggleViewMode() {
+        // Cambia el modo (si es 0 se vuelve 1, si es 1 se vuelve 0)
+        currentViewMode = if (currentViewMode == VIEW_MODE_LIST) VIEW_MODE_GRID else VIEW_MODE_LIST
+        // Guarda la nueva preferencia
+        saveViewMode(currentViewMode)
+        // Aplica el cambio de layout
+        applyLayoutManager()
+        // Actualiza el ícono del menú
+        updateViewModeIcon()
+    }
+
+    /**
+     * Aplica el LinearLayoutManager o GridLayoutManager al RecyclerView.
+     */
+    private fun applyLayoutManager() {
+        if (currentViewMode == VIEW_MODE_GRID) {
+            // Modo Cuadrícula (ej. 3 columnas)
+            recyclerView.layoutManager = GridLayoutManager(this, 3)
+        } else {
+            // Modo Lista
+            recyclerView.layoutManager = LinearLayoutManager(this)
+        }
+    }
+
+    /**
+     * Actualiza el ícono del menú para mostrar la acción opuesta.
+     */
+    private fun updateViewModeIcon() {
+        if (currentViewMode == VIEW_MODE_GRID) {
+            // Si estamos en Cuadrícula, el botón debe mostrar "Cambiar a Lista"
+            viewModeMenuItem?.setIcon(R.drawable.ic_view_list)
+        } else {
+            // Si estamos en Lista, el botón debe mostrar "Cambiar a Cuadrícula"
+            viewModeMenuItem?.setIcon(R.drawable.ic_view_grid)
+        }
+    }
+
+    /**
+     * Guarda la preferencia de vista (Lista/Cuadrícula).
+     */
+    private fun saveViewMode(mode: Int) {
+        val sharedPref = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        with(sharedPref.edit()) {
+            putInt(PREF_KEY_VIEW_MODE, mode)
+            apply()
+        }
+    }
+
+    /**
+     * Obtiene la preferencia de vista guardada.
+     */
+    private fun getCurrentViewMode(): Int {
+        val sharedPref = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPref.getInt(PREF_KEY_VIEW_MODE, VIEW_MODE_LIST) // Lista por defecto
     }
 
     /**
@@ -307,6 +471,8 @@ class MainActivity : AppCompatActivity() {
         try {
             // 5. Lanzar el Intent
             startActivity(intent)
+            // If opening was successful, add it to recents
+            addRecentFile(fileItem)
         } catch (e: ActivityNotFoundException) {
             // Manejar el caso donde no hay ninguna app instalada para abrir el archivo
             Toast.makeText(this, "No se encontró una aplicación para abrir este archivo.", Toast.LENGTH_SHORT).show()
@@ -331,28 +497,37 @@ class MainActivity : AppCompatActivity() {
      * Muestra el diálogo de opciones (Renombrar, Eliminar, Detalles) para un archivo.
      */
     private fun showFileOptionsDialog(fileItem: FileItem) {
-        // MODIFICACIÓN: Añade "Copiar" y "Mover"
-        val options = arrayOf("Copiar", "Mover", "Renombrar", "Eliminar", "Detalles")
+        // 1. Comprueba si el archivo ya es un favorito
+        val isFavorite = favoritePaths.contains(fileItem.path)
+        val favoriteOptionText = if (isFavorite) {
+            "Quitar de Favoritos"
+        } else {
+            "Añadir a Favoritos"
+        }
 
+        // 2. Crea la lista de opciones dinámicamente
+        val options = mutableListOf(
+            favoriteOptionText,
+            "Copiar",
+            "Mover",
+            "Renombrar",
+            "Eliminar",
+            "Detalles"
+        )
+
+        // 3. Muestra el diálogo
         AlertDialog.Builder(this)
             .setTitle(fileItem.name)
-            .setItems(options) { dialog, which ->
-                when (which) {
-                    0 -> { // Copiar
-                        setPendingOperation(OperationType.COPY, fileItem)
-                    }
-                    1 -> { // Mover
-                        setPendingOperation(OperationType.MOVE, fileItem)
-                    }
-                    2 -> { // Renombrar
-                        showRenameDialog(fileItem)
-                    }
-                    3 -> { // Eliminar
-                        deleteFileOrDirectory(fileItem)
-                    }
-                    4 -> { // Detalles
-                        showDetailsDialog(fileItem)
-                    }
+            .setItems(options.toTypedArray()) { dialog, which ->
+                // 4. Maneja el clic basado en el TEXTO de la opción
+                when (options[which]) {
+                    "Añadir a Favoritos" -> addFavorite(fileItem)
+                    "Quitar de Favoritos" -> removeFavorite(fileItem)
+                    "Copiar" -> setPendingOperation(OperationType.COPY, fileItem)
+                    "Mover" -> setPendingOperation(OperationType.MOVE, fileItem)
+                    "Renombrar" -> showRenameDialog(fileItem)
+                    "Eliminar" -> deleteFileOrDirectory(fileItem)
+                    "Detalles" -> showDetailsDialog(fileItem)
                 }
             }
             .show()
@@ -625,6 +800,8 @@ class MainActivity : AppCompatActivity() {
         currentPath = path
         val files = getFilesFromPath(path)
         fileAdapter.updateData(files)
+        // Carga los favoritos y actualiza las estrellas en el adapter
+        loadFavorites()
         // Actualiza los breadcrumbs
         val segments = parsePathToSegments(path)
         breadcrumbAdapter.updateData(segments)
@@ -724,5 +901,137 @@ class MainActivity : AppCompatActivity() {
                 modifiedDate = it.lastModified()
             )
         }.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() })) // Ordena: carpetas primero, luego alfabéticamente
+    }
+
+    /**
+     * Carga la lista de favoritos desde la BD (en un hilo secundario)
+     * y actualiza el adapter.
+     */
+    private fun loadFavorites() {
+        // lifecycleScope.launch inicia una coroutine (hilo secundario)
+        lifecycleScope.launch {
+            try {
+                // Obtenemos todos los favoritos de la base de datos
+                val favorites = favoriteDao.getAllFavorites()
+                // Extraemos solo las rutas y las guardamos en nuestro Set
+                favoritePaths = favorites.map { it.path }.toSet()
+                // Le pasamos el Set al adapter para que muestre las estrellas
+                fileAdapter.updateFavorites(favoritePaths)
+            } catch (e: Exception) {
+                // Manejar error de base de datos si ocurre
+                Toast.makeText(this@MainActivity, "Error al cargar favoritos", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * Añade un archivo a la base de datos de favoritos.
+     */
+    private fun addFavorite(fileItem: FileItem) {
+        lifecycleScope.launch {
+            try {
+                // Crea el objeto 'Favorite' que definimos en Favorite.kt
+                val favorite = Favorite(
+                    path = fileItem.path,
+                    name = fileItem.name,
+                    isDirectory = fileItem.isDirectory
+                )
+                // Llama a la función 'suspend' del DAO para insertarlo
+                favoriteDao.insert(favorite)
+                // Vuelve a cargar la lista para refrescar la estrella
+                loadFavorites()
+                Toast.makeText(this@MainActivity, "Añadido a favoritos", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this@MainActivity, "Error al añadir", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * Elimina un archivo de la base de datos de favoritos.
+     */
+    private fun removeFavorite(fileItem: FileItem) {
+        lifecycleScope.launch {
+            try {
+                // Para borrar, solo necesitamos un objeto 'Favorite' con la PrimaryKey (la ruta)
+                val favorite = Favorite(
+                    path = fileItem.path,
+                    name = fileItem.name,
+                    isDirectory = fileItem.isDirectory
+                )
+                // Llama a la función 'suspend' del DAO para borrarlo
+                favoriteDao.delete(favorite)
+                // Vuelve a cargar la lista para refrescar la estrella
+                loadFavorites()
+                Toast.makeText(this@MainActivity, "Quitado de favoritos", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this@MainActivity, "Error al quitar", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * Adds a file to the recent files database.
+     */
+    private fun addRecentFile(fileItem: FileItem) {
+        lifecycleScope.launch {
+            try {
+                // Create the RecentFile object with current time
+                val recentFile = RecentFile(
+                    path = fileItem.path,
+                    name = fileItem.name,
+                    lastOpenedTimestamp = System.currentTimeMillis() // Get current time in milliseconds
+                )
+                // Insert/Update the record in the database
+                recentFileDao.insertOrUpdate(recentFile)
+
+                // Optional: Keep the history trimmed to, say, 20 items
+                recentFileDao.trimHistory(limit = 20)
+
+            } catch (e: Exception) {
+                // Log the error or show a silent notification if needed
+                // Avoid showing a toast here as it might be annoying
+                // Log.e("MainActivity", "Error adding recent file", e)
+            }
+        }
+    }
+
+    /**
+     * (Placeholder for future use) Loads recent files from the database.
+     * We'll need this later if we want to display a "Recent Files" list.
+     */
+    private suspend fun loadRecentFiles(): List<RecentFile> {
+        return try {
+            recentFileDao.getAllRecents()
+        } catch (e: Exception) {
+            // Log error
+            emptyList()
+        }
+    }
+
+    private fun loadAndDisplayRecentFiles() {
+        lifecycleScope.launch {
+            val recents = loadRecentFiles() // Llama a tu función suspendida existente
+            recentFilesAdapter.updateData(recents)
+            // Opcional: Ocultar la cabecera si no hay recientes
+            recentFilesHeader.visibility = if (recents.isEmpty()) View.GONE else View.VISIBLE
+            // Asegurarse de que la lista esté colapsada si no hay ítems
+            if (recents.isEmpty()) {
+                isRecentsExpanded = false
+                recentFilesRecyclerView.visibility = View.GONE
+                updateRecentsToggleIcon()
+            }
+        }
+    }
+
+    private fun toggleRecentsSection() {
+        isRecentsExpanded = !isRecentsExpanded
+        recentFilesRecyclerView.visibility = if (isRecentsExpanded) View.VISIBLE else View.GONE
+        updateRecentsToggleIcon()
+    }
+
+    private fun updateRecentsToggleIcon() {
+        val iconRes = if (isRecentsExpanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more
+        recentFilesToggleIcon.setImageResource(iconRes)
     }
 }

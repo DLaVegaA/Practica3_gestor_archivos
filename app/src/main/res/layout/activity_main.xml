@@ -8,7 +8,6 @@
     android:fitsSystemWindows="true"
     tools:context=".MainActivity">
 
-
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
@@ -21,34 +20,71 @@
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/breadcrumbRecyclerView"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingHorizontal="8dp"
-        android:clipToPadding="false"
-        android:orientation="horizontal"
-        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior"
-        tools:listitem="@layout/breadcrumb_item" />
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerView"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior"
-        tools:listitem="@layout/file_item"
-        android:paddingTop="48dp" />
+        android:orientation="vertical"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fab_add_folder"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:src="@android:drawable/ic_input_add"
-        app:tint="@android:color/white"
-        android:contentDescription="Crear nueva carpeta" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/breadcrumbRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="8dp"
+            android:clipToPadding="false"
+            android:orientation="horizontal"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            tools:listitem="@layout/breadcrumb_item" />
+
+        <LinearLayout
+            android:id="@+id/recent_files_header"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="16dp"
+            android:gravity="center_vertical"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Archivos Recientes"
+                android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+            <ImageView
+                android:id="@+id/iv_recent_files_toggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_expand_more" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recentFilesRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            tools:visibility="visible"
+            tools:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            tools:itemCount="3"
+            tools:listitem="@layout/file_item" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" tools:listitem="@layout/file_item" />
+
+    </LinearLayout> <com.google.android.material.floatingactionbutton.FloatingActionButton
+    android:id="@+id/fab_add_folder"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="bottom|end"
+    android:layout_margin="16dp"
+    android:src="@android:drawable/ic_input_add"
+    app:tint="@android:color/white"
+    android:contentDescription="Crear nueva carpeta" />
 
     <androidx.cardview.widget.CardView
         android:id="@+id/paste_bar"
@@ -78,16 +114,17 @@
                 tools:text="Moviendo: archivo_muy_largo.txt" />
 
             <Button
-                android:id="@+id/btn_paste"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Pegar" />
-            <Button
                 android:id="@+id/btn_cancel_paste"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Cancelar" />
+            <Button
+                android:id="@+id/btn_paste"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pegar" />
 
         </LinearLayout>
     </androidx.cardview.widget.CardView>
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
