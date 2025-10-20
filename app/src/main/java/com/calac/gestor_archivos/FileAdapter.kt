@@ -8,6 +8,9 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import java.util.Locale
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import java.io.File
 
 class FileAdapter(private var files: List<FileItem>,
                   private val onItemClickListener: (FileItem, View) -> Unit,
@@ -43,11 +46,21 @@ class FileAdapter(private var files: List<FileItem>,
         val fileItem = files[position]
         // Pone el nombre del archivo en el TextView.
         holder.nameTextView.text = fileItem.name
-        // Elige un icono diferente si es una carpeta o un archivo.
-        // 1. Obtenemos el ID del ícono correcto
-        val iconResId = getFileIconResId(fileItem)
-        // 2. Lo asignamos al ImageView
-        holder.iconImageView.setImageResource(iconResId)
+        // 1. Comprueba si es un archivo de imagen
+        if (!fileItem.isDirectory && isImageFile(fileItem.name)) {
+            // Si es imagen, usa Glide para cargar la miniatura
+            Glide.with(holder.itemView.context) // Usa el contexto de la vista
+                .load(File(fileItem.path))    // Carga desde el archivo
+                .diskCacheStrategy(DiskCacheStrategy.ALL) // Guarda original y redimensionada
+                .placeholder(R.drawable.ic_file_image) // Ícono mientras carga
+                .error(R.drawable.ic_file_generic)     // Ícono si hay error
+                .centerCrop() // Escala la imagen para llenar el ImageView
+                .into(holder.iconImageView) // El destino
+        } else {
+            // Si NO es imagen (o es carpeta), usa la lógica de íconos vectoriales
+            val iconResId = getFileIconResId(fileItem)
+            holder.iconImageView.setImageResource(iconResId)
+        }
 
         // Comprueba si la ruta de este archivo está en la lista de favoritos
         if (favoritePaths.contains(fileItem.path)) {
@@ -128,6 +141,15 @@ class FileAdapter(private var files: List<FileItem>,
             "zip", "rar", "7z", "tar" -> R.drawable.ic_folder_zip
             // Si no coincide con nada, usa el ícono genérico
             else -> R.drawable.ic_file_generic
+        }
+    }
+
+    /** Comprueba si un nombre de archivo corresponde a un tipo de imagen común */
+    private fun isImageFile(fileName: String): Boolean {
+        val extension = fileName.substringAfterLast('.', "").lowercase(Locale.getDefault())
+        return when (extension) {
+            "jpg", "jpeg", "png", "gif", "bmp", "webp" -> true
+            else -> false
         }
     }
 
