@@ -452,6 +452,30 @@ class MainActivity : AppCompatActivity() {
     private fun openFile(fileItem: FileItem) {
         val file = File(fileItem.path)
 
+        // Check if it's an image file FIRST
+        if (isImageFile(fileItem.name)) {
+            // Launch our internal ImageViewerActivity
+            val intent = Intent(this, ImageViewerActivity::class.java).apply {
+                // Pass the file path to the new activity
+                putExtra(ImageViewerActivity.EXTRA_FILE_PATH, fileItem.path) // We'll define EXTRA_FILE_PATH in ImageViewerActivity
+            }
+            startActivity(intent)
+            addRecentFile(fileItem) // Add to recents
+            return // Exit the function early
+        }
+
+        // Check if it's a text file FIRST
+        if (isTextFile(fileItem.name)) {
+            // Launch our internal TextViewerActivity
+            val intent = Intent(this, TextViewerActivity::class.java).apply {
+                // Pass the file path to the new activity
+                putExtra(TextViewerActivity.EXTRA_FILE_PATH, fileItem.path)
+            }
+            startActivity(intent)
+            addRecentFile(fileItem) // Still add to recents
+            return // Exit the function early
+        }
+
         // 1. Obtener la URI segura usando el FileProvider
         // La autoridad DEBE coincidir con la que pusiste en el AndroidManifest.xml
         val authority = "${packageName}.provider"
@@ -1033,5 +1057,24 @@ class MainActivity : AppCompatActivity() {
     private fun updateRecentsToggleIcon() {
         val iconRes = if (isRecentsExpanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more
         recentFilesToggleIcon.setImageResource(iconRes)
+    }
+
+    /** Checks if a filename corresponds to a supported image type */
+    private fun isImageFile(fileName: String): Boolean {
+        val extension = fileName.substringAfterLast('.', "").lowercase(Locale.getDefault())
+        return when (extension) {
+            "jpg", "jpeg", "png", "gif", "bmp", "webp" -> true
+            // Add more image extensions if needed
+            else -> false
+        }
+    }
+
+    private fun isTextFile(fileName: String): Boolean {
+        val extension = fileName.substringAfterLast('.', "").lowercase(Locale.getDefault())
+        return when (extension) {
+            "txt", "md", "log", "json", "xml", "kt", "java", "html", "css", "js" -> true
+            // Add more text extensions if needed
+            else -> false
+        }
     }
 }
